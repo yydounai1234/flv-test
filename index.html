@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>xgplayer</title>
+    <link rel="stylesheet" href="//unpkg.byted-static.com/xgplayer/3.0.10/dist/index.min.css" />
+    <script src="//unpkg.byted-static.com/xgplayer/3.0.10/dist/index.min.js"></script>
+    <script src="//unpkg.byted-static.com/xgplayer-flv/3.0.10/dist/index.min.js"></script>
+</head>
+
+<body>
+    <input style="height: 30px; width: 50vw" type="text" placeholder="请输入播放 url" id="input"
+        value="http://42.101.91.37/dwtest-play-all.cloudvdn.com/dwtest/lag_test.flv" />
+    <button onclick="startTest()">开始测试</button>
+    <div id="mse"></div>
+    <div>
+        <h3 style="margintop: 10px">
+            <span>播放时长：</span><span id="time">0</span><span>ms</span>
+            <span style="padding-left: 20px">卡顿次数：</span><span id="stucksCount">0</span>
+            <span style="padding-left: 20px">卡顿时长：</span><span id="stucksTime">0</span><span>ms</span>
+        </h3>
+        <h3 style="margintop: 10px">统计详情</h3>
+        <table>
+            <thead>
+              <tr>
+                <th style="width:150px">时间戳</th>
+                <th style="padding-left: 20px;width:150px">卡顿次数</th>
+                <th style="padding-left: 20px;width: 150px;">卡顿时长</th>
+              </tr>
+            </thead>
+            <tbody id="item">
+            </tbody>
+          </table>
+        <div id="item"></div>
+    </div>
+</body>
+<script>
+    const Events = window.Player.Events
+    let player = null
+    let timer = null
+    let time = 0
+    let stucksTime = 0
+    // let isPause = false
+    let start = 0
+    let stucks = []
+    function formatTimestamp(timestamp) {
+      const date = new Date(timestamp * 1000);
+      const options = { 
+        hour: 'numeric', 
+        minute: 'numeric',
+        second: 'numeric'
+      };
+      return date.toLocaleTimeString('zh-CN', options);
+    }
+    const startTest = () => {
+        if (player != null) {
+            player.destroy()
+        }
+        document.getElementById("stucksTime").innerHTML = 0
+        const url = document.querySelector("#input").value
+        clearInterval(timer)
+        time = 0
+        start = 0
+        stucksTime = 0
+        stucks = []
+        isPause = false
+        player = new window.Player({
+            id: 'mse',
+            url: url,
+            height: '400px',
+            width: '400px',
+            plugins: [FlvPlayer],
+            isLive: true,
+            autoplay: true,
+            playsinline: true
+        })
+        player.on(Events.PLAY, () => {
+            console.log("开始播放")
+            clearInterval(timer)
+            timer = setInterval(() => {
+                ++time;
+                document.querySelector("#time").innerHTML = time * 1000
+            }, 1000)
+        })
+        player.on(Events.WAITING, () => {
+            console.log("开始卡顿")
+            // if (isPause) {
+            //     isPause = false
+            // } else {
+            //     start = Date.now()
+            // }
+            start = Date.now()
+        })
+        player.on(Events.PLAYING, () => {
+            console.log("恢复播放")
+            let stuck = Date.now() - start
+            if (time >= 2 && stuck >= 200 && start !== 0) {
+                stucks.push({
+                    time: stuck,
+                    timestamp: formatTimestamp(Math.floor(start / 1000))
+                })
+                stucksTime += stuck
+                document.getElementById("stucksTime").innerHTML = stucksTime
+            }
+            let innerHTML = ''
+            for (let i = 0; i < stucks.length; i++) {
+                innerHTML += `
+                <tr>
+                    <td style="text-align:center">${stucks[i].timestamp}</td>
+                    <td style="text-align:center">${i + 1}</td>
+                    <td style="text-align:center">${stucks[i].time}</td>
+                </tr>
+            `
+            }
+            document.getElementById("stucksCount").innerHTML = stucks.length
+            document.getElementById("item").innerHTML = innerHTML
+        })
+        player.on(Events.PAUSE, () => {
+            clearInterval(timer)
+            start = 0
+            // isPause = true
+            console.log("暂停播放")
+        })
+        player.on(Events.ENDED, () => {
+            clearInterval(timer)
+            player.play()
+            console.log("结束播放")
+        })
+        player.on(Events.ERROR, () => {
+            console.log("出错了")
+            // setTimeout(() => {
+            //     player.reload()
+            // }, 500)
+            
+        })
+    }
+</script>
+
+</html>
