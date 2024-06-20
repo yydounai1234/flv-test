@@ -9,28 +9,58 @@
     <link rel="stylesheet" href="//unpkg.byted-static.com/xgplayer/3.0.10/dist/index.min.css" />
     <script src="//unpkg.byted-static.com/xgplayer/3.0.10/dist/index.min.js"></script>
     <script src="//unpkg.byted-static.com/xgplayer-flv/3.0.10/dist/index.min.js"></script>
+    <style>
+        table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+      
+        th, td {
+          padding: 8px;
+          text-align: center;
+          border-bottom: 1px solid #ddd;
+        }
+
+        .btn {
+            background:blue;
+            border: 0;
+            height: 30px;
+            width: 70px;
+            border-radius: 5px;
+            color: white;
+        }
+      </style>
 </head>
 
 <body>
-    <div><label for="input">播放地址</label><input style="height: 30px; width: 80vw" type="text" placeholder="请输入播放 url" id="input"
-        value="http://42.101.91.37/dwtest-play-all.cloudvdn.com/dwtest/lag_test.flv" /></div>
-    <div style="margin-top: 10px"><label for="startRecord">开始记录时间</label><input style="height: 30px" id="startRecord" type="datetime-local" name="datetime-input"></div>
-    <div style="margin-top: 10px"><label for="endRecord">结束记录时间</label><input style="height: 30px" id="endRecord" type="datetime-local" name="datetime-input"></div>
-    <div style="margin-top: 10px;margin-bottom: 10px">
-        <button onclick="startTest()">开始测试</button>
-        <button onclick="exportData()">导出数据</button>
-        <button onclick="clearData()">清除缓存</button>
+    <div style="display: flex;align-items: center;"><label for="input" style="margin-right:20px">播放地址</label><input style="height: 30px; flex:1" type="text" placeholder="请输入播放 url" id="input"
+        value="http://111.42.190.53/dwtest-play-all.cloudvdn.com/dwtest/lag_test_bj.flv?cachelen=5000" /></div>
+    <div style="margin: 10px 0;display:flex;align-items: stretch;">
+        <div style="width:50%;display:flex;align-items: center;"><label for="startRecord" style="margin-right:20px">开始卡顿统计时间</label><input style="height: 30px" id="startRecord" type="datetime-local" name="datetime-input"></div>
+        <div style="width:50%;display:flex;align-items: center;"><label for="endRecord" style="margin-right:20px">结束卡顿统计时间</label><input style="height: 30px" id="endRecord" type="datetime-local" name="datetime-input"></div>
+    </div>
+    <div style="width:30%;margin-bottom: 10px; display:flex;align-items: center;">
+        <button class="btn" style="margin-right:10px" onclick="startTest()">开始测试</button>
+        <button class="btn" style="margin-right:10px" onclick="exportData()">导出数据</button>
+        <button class="btn" style="margin-right:10px" onclick="clearData()">清除缓存</button>
     </div>
     <div id="mse"></div>
     <div>
-        <h3 style="margin-top: 10px">
-            <span>开始播放时间：</span><span id="startTime">0</span>
-            <span style="padding-left: 20px">播放时长：</span><span id="time">0</span><span>ms</span>
-            <span style="padding-left: 20px">卡顿次数：</span><span id="stucksCount">0</span>
-            <span style="padding-left: 20px">卡顿总时长：</span><span id="stucksTime">0</span><span>ms</span>
-        </h3>
-        <h3 style="margin-top: 10px; line-height: 3px;">统计详情<span id="tong" style="color: red;font-size: 12px;line-height:30px"></span></h3>
-        <table>
+        <div style="margin-top: 10px">
+            <div style="margin-bottom: 10px;">
+                <span>开始播放时间：</span><span id="startTime">0</span>
+                <span style="padding-left: 20px">首开耗时：</span><span id="firstOpenDuration">0</span><span>ms</span>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <span>播放时长：</span><span id="time">0</span><span>ms</span>
+                <span style="padding-left: 20px">卡顿次数：</span><span id="stucksCount">0</span>
+                <span style="padding-left: 20px">卡顿总时长：</span><span id="stucksTime">0</span><span>ms</span>
+            </div>
+            <div style="display: flex;align-items: center;margin-top: 20px">
+                <span>统计详情</span><span id="tong" style="color: red;font-size: 12px"></span>
+            </div>
+        </div>
+        <table style="margin-top: 10px">
             <thead>
               <tr>
                 <th style="width:150px">卡顿开始时间</th>
@@ -97,6 +127,7 @@
       return date.toLocaleDateString('zh-CN', options);
     }
 
+    // 导出数据
     const exportData = () => {
         let cache = []
         for (let i = 0; i < localStorage.length; i++) {
@@ -115,16 +146,21 @@
         document.body.removeChild(downloadLink);
     }
 
+    // 清除缓存
     const clearData = () => {
-        localStorage.removeItem("cache")
+        localStorage.clear()
     }
 
     const startTest = () => {
+        // 首开开始时间
+        let firstOpenStartTime = Date.now()
+        // 首开结束时间
+        let firstOpenEndTime = 0
         const startRecordDom = document.querySelector("#startRecord")
         const endRecordDom = document.querySelector("#endRecord")
         startRecord = Date.parse(startRecordDom.value) || Date.now()
         endRecord = Date.parse(endRecordDom.value) || Date.now() + 1000 * 60 * 60 * 24 * 365
-        document.querySelector("#tong").innerHTML = `（统计开始时间：${formatTimestamp3(Math.floor(startRecord / 1000))}    统计结束时间：${formatTimestamp3(Math.floor(endRecord / 1000))}）`
+        document.querySelector("#tong").innerHTML = `（统计起始时间：${formatTimestamp3(Math.floor(startRecord / 1000))} ～ ${formatTimestamp3(Math.floor(endRecord / 1000))}）`
         if (player != null) {
             player.destroy()
         }
@@ -150,6 +186,10 @@
         })
         player.on(Events.PLAY, () => {
             console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 开始播放`)
+            if (firstOpenEndTime === 0) {
+                firstOpenEndTime = Date.now()
+                document.getElementById("firstOpenDuration").innerHTML = firstOpenEndTime - firstOpenStartTime
+            }
             startPlayTime = Date.now()
             document.querySelector("#startTime").innerHTML = formatTimestamp2(Math.floor(startPlayTime / 1000))
             clearInterval(timer)
@@ -175,6 +215,7 @@
                             "卡顿总时长": stucksTime,
                             "卡顿次数": stucks.length,
                             "播放总时长": time * 1000,
+                            "首开时长": firstOpenEndTime - firstOpenStartTime,
                             data: []
                         }
                         localStorage.setItem(id, JSON.stringify(insert))
@@ -214,6 +255,7 @@
                         id: id,
                         "开始播放时间": formatTimestamp2(Math.floor(startPlayTime / 1000)), 
                         "链接": url,
+                        "首开时长": firstOpenEndTime - firstOpenStartTime,
                         "卡顿总时长": stucksTime,
                         "卡顿次数": stucks.length,
                         "播放总时长": time * 1000,
