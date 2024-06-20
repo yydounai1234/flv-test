@@ -12,22 +12,29 @@
 </head>
 
 <body>
-    <input style="height: 30px; width: 50vw" type="text" placeholder="请输入播放 url" id="input"
-        value="http://42.101.91.37/dwtest-play-all.cloudvdn.com/dwtest/lag_test.flv" />
-    <button onclick="startTest()">开始测试</button>
+    <div><label for="input">播放地址</label><input style="height: 30px; width: 80vw" type="text" placeholder="请输入播放 url" id="input"
+        value="http://42.101.91.37/dwtest-play-all.cloudvdn.com/dwtest/lag_test.flv" /></div>
+    <div style="margin-top: 10px"><label for="startRecord">开始记录时间</label><input style="height: 30px" id="startRecord" type="datetime-local" name="datetime-input"></div>
+    <div style="margin-top: 10px"><label for="endRecord">结束记录时间</label><input style="height: 30px" id="endRecord" type="datetime-local" name="datetime-input"></div>
+    <div style="margin-top: 10px;margin-bottom: 10px">
+        <button onclick="startTest()">开始测试</button>
+        <button onclick="exportData()">导出数据</button>
+        <button onclick="clearData()">清除缓存</button>
+    </div>
     <div id="mse"></div>
     <div>
-        <h3 style="margintop: 10px">
-            <span>播放时长：</span><span id="time">0</span><span>ms</span>
+        <h3 style="margin-top: 10px">
+            <span>开始播放时间：</span><span id="startTime">0</span>
+            <span style="padding-left: 20px">播放时长：</span><span id="time">0</span><span>ms</span>
             <span style="padding-left: 20px">卡顿次数：</span><span id="stucksCount">0</span>
-            <span style="padding-left: 20px">卡顿时长：</span><span id="stucksTime">0</span><span>ms</span>
+            <span style="padding-left: 20px">卡顿总时长：</span><span id="stucksTime">0</span><span>ms</span>
         </h3>
-        <h3 style="margintop: 10px">统计详情</h3>
+        <h3 style="margin-top: 10px; line-height: 3px;">统计详情<span id="tong" style="color: red;font-size: 12px;line-height:30px"></span></h3>
         <table>
             <thead>
               <tr>
-                <th style="width:150px">时间戳</th>
-                <th style="padding-left: 20px;width:150px">卡顿次数</th>
+                <th style="width:150px">卡顿开始时间</th>
+                <th style="padding-left: 20px;width:150px">索引</th>
                 <th style="padding-left: 20px;width: 150px;">卡顿时长</th>
               </tr>
             </thead>
@@ -43,9 +50,18 @@
     let timer = null
     let time = 0
     let stucksTime = 0
-    // let isPause = false
     let start = 0
     let stucks = []
+    let id = 0
+    let startPlayTime = 0
+    let waitRecordTime = 0
+    // 开始统计时间戳
+    let startRecord = 0
+    // 结束统计时间戳
+    let endRecord = 0
+
+
+    // 格式化
     function formatTimestamp(timestamp) {
       const date = new Date(timestamp * 1000);
       const options = { 
@@ -55,10 +71,64 @@
       };
       return date.toLocaleTimeString('zh-CN', options);
     }
+
+    function formatTimestamp2(timestamp) {
+      const date = new Date(timestamp * 1000);
+      const options = { 
+        month: 'long', 
+        day: 'numeric',
+        hour: 'numeric', 
+        minute: 'numeric',
+        second: 'numeric'
+      };
+      return date.toLocaleDateString('zh-CN', options);
+    }
+
+    function formatTimestamp3(timestamp) {
+      const date = new Date(timestamp * 1000);
+      const options = { 
+        year: 'numeric',
+        month: 'long', 
+        day: 'numeric',
+        hour: 'numeric', 
+        minute: 'numeric',
+        second: 'numeric'
+      };
+      return date.toLocaleDateString('zh-CN', options);
+    }
+
+    const exportData = () => {
+        let cache = []
+        for (let i = 0; i < localStorage.length; i++) {
+            let key = localStorage.key(i);
+            if (key[0] * 1 === 1) {
+                let value = localStorage.getItem(key);
+                cache.push(JSON.parse(value))
+            }
+        }
+        const data = JSON.stringify(cache);
+        const downloadLink = document.createElement('a');
+        downloadLink.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(data));
+        downloadLink.setAttribute('download', 'localStorage.json');
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+
+    const clearData = () => {
+        localStorage.removeItem("cache")
+    }
+
     const startTest = () => {
+        const startRecordDom = document.querySelector("#startRecord")
+        const endRecordDom = document.querySelector("#endRecord")
+        startRecord = Date.parse(startRecordDom.value) || Date.now()
+        endRecord = Date.parse(endRecordDom.value) || Date.now() + 1000 * 60 * 60 * 24 * 365
+        document.querySelector("#tong").innerHTML = `（统计开始时间：${formatTimestamp3(Math.floor(startRecord / 1000))}    统计结束时间：${formatTimestamp3(Math.floor(endRecord / 1000))}）`
         if (player != null) {
             player.destroy()
         }
+        id = Date.now()
         document.getElementById("stucksTime").innerHTML = 0
         const url = document.querySelector("#input").value
         clearInterval(timer)
@@ -66,7 +136,8 @@
         start = 0
         stucksTime = 0
         stucks = []
-        isPause = false
+        startPlayTime = 0
+        waitRecordTime = 0
         player = new window.Player({
             id: 'mse',
             url: url,
@@ -78,31 +149,78 @@
             playsinline: true
         })
         player.on(Events.PLAY, () => {
-            console.log("开始播放")
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 开始播放`)
+            startPlayTime = Date.now()
+            document.querySelector("#startTime").innerHTML = formatTimestamp2(Math.floor(startPlayTime / 1000))
             clearInterval(timer)
             timer = setInterval(() => {
-                ++time;
+                ++time
+                // const currentTime = Date.now()
+                // if (currentTime >= startRecord && currentTime <= endRecord) {
+                //     ++time
+                // }
+                ++ waitRecordTime;
+                if (waitRecordTime >= 10) {
+                    waitRecordTime = 0
+                    const cache = localStorage.getItem(id)
+                    if (cache) {
+                        const cacheData = JSON.parse(cache)
+                        cacheData["播放总时长"] = time * 1000
+                        localStorage.setItem(id, JSON.stringify(cacheData))
+                    } else {
+                        const insert = {
+                            id: id,
+                            "开始播放时间": formatTimestamp2(Math.floor(startPlayTime / 1000)), 
+                            "链接": url,
+                            "卡顿总时长": stucksTime,
+                            "卡顿次数": stucks.length,
+                            "播放总时长": time * 1000,
+                            data: []
+                        }
+                        localStorage.setItem(id, JSON.stringify(insert))
+                    }
+                }
                 document.querySelector("#time").innerHTML = time * 1000
             }, 1000)
         })
         player.on(Events.WAITING, () => {
-            console.log("开始卡顿")
-            // if (isPause) {
-            //     isPause = false
-            // } else {
-            //     start = Date.now()
-            // }
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 开始卡顿`)
             start = Date.now()
         })
         player.on(Events.PLAYING, () => {
-            console.log("恢复播放")
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 恢复播放`)
             let stuck = Date.now() - start
-            if (time >= 2 && stuck >= 200 && start !== 0) {
+            if (time >= 2 && stuck >= 200 && start !== 0 && start >= startRecord && start <= endRecord) {
                 stucks.push({
                     time: stuck,
                     timestamp: formatTimestamp(Math.floor(start / 1000))
                 })
                 stucksTime += stuck
+                const cache = localStorage.getItem(id)
+                const insertData = {
+                    "索引": stucks.length,
+                    "卡顿时长": stuck,
+                    "卡顿开始时间": formatTimestamp2(Math.floor(start / 1000))
+                }
+                if (cache) {
+                    const cacheData = JSON.parse(cache)
+                    cacheData["卡顿总时长"] = stucksTime
+                    cacheData["卡顿次数"] = stucks.length
+                    cacheData["播放总时长"] = time * 1000
+                    cacheData.data.push(insertData)
+                    localStorage.setItem(id, JSON.stringify(cacheData))
+                } else {
+                    const insert = {
+                        id: id,
+                        "开始播放时间": formatTimestamp2(Math.floor(startPlayTime / 1000)), 
+                        "链接": url,
+                        "卡顿总时长": stucksTime,
+                        "卡顿次数": stucks.length,
+                        "播放总时长": time * 1000,
+                        data: [insertData]
+                    }
+                    localStorage.setItem(id, JSON.stringify(insert))
+                }
                 document.getElementById("stucksTime").innerHTML = stucksTime
             }
             let innerHTML = ''
@@ -121,19 +239,15 @@
         player.on(Events.PAUSE, () => {
             clearInterval(timer)
             start = 0
-            // isPause = true
-            console.log("暂停播放")
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 暂停播放`)
         })
         player.on(Events.ENDED, () => {
             clearInterval(timer)
             player.play()
-            console.log("结束播放")
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 结束播放`)
         })
         player.on(Events.ERROR, () => {
-            console.log("出错了")
-            // setTimeout(() => {
-            //     player.reload()
-            // }, 500)
+            console.log(`\x1b[34m${formatTimestamp2(Math.floor(Date.now() / 1000))}\x1b[0m 出错了`)
             
         })
     }
